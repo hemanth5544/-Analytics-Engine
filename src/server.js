@@ -41,6 +41,43 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(generalLimiter);
 
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Analytics API Documentation'
+}));
+
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Unified Event Analytics API',
+    version: '1.0.0',
+    documentation: '/api-docs',
+    endpoints: {
+      auth: '/api/auth',
+      analytics: '/api/analytics'
+    }
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/analytics', analyticsRoutes);
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error'
+  });
+});
 
 async function startServer() {
   try {
