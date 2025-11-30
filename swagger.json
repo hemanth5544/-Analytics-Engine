@@ -1,0 +1,401 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Unified Event Analytics API",
+    "version": "1.0.0",
+    "description": "Scalable backend API for website and mobile app analytics",
+    "contact": {
+      "name": "API Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.youranalytics.com",
+      "description": "Production server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "API key required for event collection"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token for user-authenticated routes"
+      }
+    },
+    "schemas": {
+      "EventPayload": {
+        "type": "object",
+        "required": ["event", "url", "device", "timestamp"],
+        "properties": {
+          "event": { "type": "string", "example": "page_view" },
+          "url": { "type": "string", "example": "https://example.com/about" },
+          "referrer": { "type": "string", "nullable": true, "example": "https://google.com" },
+          "device": { "type": "string", "enum": ["desktop", "mobile", "tablet"], "example": "mobile" },
+          "ipAddress": { "type": "string", "nullable": true },
+          "timestamp": { "type": "string", "format": "date-time", "example": "2025-04-05T12:34:56Z" },
+          "userId": { "type": "string", "nullable": true, "example": "usr_123" },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "example": { "screenSize": "390x844", "utm_source": "google" }
+          }
+        }
+      },
+      "EventSummary": {
+        "type": "object",
+        "properties": {
+          "event": { "type": "string" },
+          "count": { "type": "integer" },
+          "uniqueUsers": { "type": "integer" },
+          "deviceData": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" },
+            "example": { "mobile": 850, "desktop": 320 }
+          }
+        }
+      },
+      "UserStats": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "string" },
+          "totalEvents": { "type": "integer" },
+          "deviceDetails": {
+            "type": "object",
+            "properties": {
+              "browser": { "type": "string", "nullable": true },
+              "os": { "type": "string", "nullable": true }
+            }
+          },
+          "ipAddress": { "type": "string", "nullable": true }
+        }
+      },
+      "DashboardData": {
+        "type": "object",
+        "properties": {
+          "totalEvents": { "type": "integer" },
+          "uniqueUsers": { "type": "integer" },
+          "topEvents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event": { "type": "string" },
+                "count": { "type": "integer" }
+              }
+            }
+          },
+          "deviceBreakdown": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" }
+          },
+          "appBreakdown": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" }
+          }
+        }
+      },
+      "AppRegistrationRequest": {
+        "type": "object",
+        "required": ["name", "domain"],
+        "properties": {
+          "name": { "type": "string", "example": "My Website" },
+          "domain": { "type": "string", "example": "https://mywebsite.com" }
+        }
+      },
+      "AppRegistrationResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string" },
+          "app": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "domain": { "type": "string" },
+              "created_at": { "type": "string", "format": "date-time" }
+            }
+          },
+          "apiKey": { "type": "string" }
+        }
+      }
+    }
+  },
+  "tags": [
+    { "name": "Analytics", "description": "Event collection and analytics" },
+    { "name": "Apps & API Keys", "description": "App registration and API key management" },
+    { "name": "Authentication", "description": "User session & auth" }
+  ],
+  "paths": {
+    "/api/events/collect": {
+      "post": {
+        "tags": ["Analytics"],
+        "summary": "Collect a tracking event",
+        "description": "Receives analytics events from client SDKs",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/EventPayload" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Event collected successfully" },
+          "400": { "description": "Missing required fields" },
+          "500": { "description": "Server error" }
+        }
+      }
+    },
+    "/api/analytics/summary": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Get event summary",
+        "parameters": [
+          { "name": "userId", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "event", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "app_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "endDate", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event summary",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EventSummary" } } }
+          }
+        }
+      }
+    },
+    "/api/analytics/user-stats": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Get stats for a specific user",
+        "parameters": [
+          { "name": "userId", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "app_id", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "User statistics",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserStats" } } }
+          },
+          "404": { "description": "No events found" }
+        }
+      }
+    },
+    "/api/analytics/dashboard": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Get dashboard overview",
+        "parameters": [
+          { "name": "userId", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "app_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "endDate", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard data",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DashboardData" } } }
+          }
+        }
+      }
+    },
+    "/api/apps/register": {
+      "post": {
+        "tags": ["Apps & API Keys"],
+        "summary": "Register a new app",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AppRegistrationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "App registered + API key generated",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppRegistrationResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/apps/api-key": {
+      "get": {
+        "tags": ["Apps & API Keys"],
+        "summary": "Get active API key for an app",
+        "parameters": [
+          { "name": "app_id", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "userId", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "app_id": { "type": "string" },
+                    "apiKey": { "type": "string" },
+                    "created_at": { "type": "string", "format": "date-time" },
+                    "expires_at": { "type": "string", "format": "date-time", "nullable": true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps/revoke-key": {
+      "post": {
+        "tags": ["Apps & API Keys"],
+        "summary": "Revoke an API key",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["api_key", "userId"],
+                "properties": {
+                  "api_key": { "type": "string" },
+                  "userId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "API key revoked" },
+          "403": { "description": "Not authorized" },
+          "404": { "description": "Key not found" }
+        }
+      }
+    },
+    "/api/apps/regenerate-key": {
+      "post": {
+        "tags": ["Apps & API Keys"],
+        "summary": "Regenerate API key (revokes old ones)",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["app_id"],
+                "properties": { "app_id": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New API key issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "apiKey": { "type": "string" },
+                    "created_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps": {
+      "get": {
+        "tags": ["Apps & API Keys"],
+        "summary": "List all apps for the user",
+        "parameters": [
+          { "name": "userId", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of apps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "domain": { "type": "string" },
+                          "created_at": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Get current authenticated user",
+        "responses": {
+          "200": {
+            "description": "Current user info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "email": { "type": "string" },
+                        "name": { "type": "string", "nullable": true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Not authenticated" }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Logout current user",
+        "responses": {
+          "200": { "description": "Logged out successfully" }
+        }
+      }
+    }
+  }
+}

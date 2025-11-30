@@ -65,8 +65,7 @@ jest.config.js          # Test configuration
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/unified-event-analytics.git
-cd unified-event-analytics
+git clone https://github.com/hemanth5544/-Analytics-Engine.git
 ```
 
 2. Install dependencies:
